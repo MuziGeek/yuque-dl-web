@@ -99,15 +99,14 @@ const download = async () => {
     console.log('发送请求到:', '/api/download')
     console.log('请求数据:', form.value)
 
-    // 发起下载
-    const response = await axios.post('/api/download', form.value, {
+    // 将 POST 请求改为 GET 请求，参数通过 URL 传递
+    const response = await axios.get('/api/download', {
+      params: form.value,
       responseType: 'blob',
       headers: {
-        'Content-Type': 'application/json',
         'Accept': 'application/zip'
       },
       timeout: 30000,
-      // 添加更多请求配置
       validateStatus: (status) => {
         console.log('响应状态码:', status)
         return status >= 200 && status < 300
@@ -144,7 +143,7 @@ const download = async () => {
     // 改进错误提示
     let errorMessage = '下载失败: '
     if (error.response?.status === 405) {
-      errorMessage += '服务器不支持该请求方法，请联系管理员'
+      errorMessage += '请确保输入正确的语雀知识库 URL'
     } else {
       errorMessage += error.response?.data?.message || error.message
     }
