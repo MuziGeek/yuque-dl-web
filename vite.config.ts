@@ -10,16 +10,15 @@ export default defineConfig({
         target: 'http://dl.easymuzi.cn',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
-        configure: (proxy, options) => {
-          // 添加代理事件处理
-          proxy.on('error', (err, req, res) => {
+        configure: (proxy) => {
+          proxy.on('error', (err) => {
             console.log('proxy error', err)
           })
-          proxy.on('proxyReq', (proxyReq, req, res) => {
-            console.log('Sending Request to the Target:', req.method, req.url)
+          proxy.on('proxyReq', () => {
+            console.log('Sending Request to the Target')
           })
-          proxy.on('proxyRes', (proxyRes, req, res) => {
-            console.log('Received Response from the Target:', proxyRes.statusCode)
+          proxy.on('proxyRes', () => {
+            console.log('Received Response from the Target')
           })
         }
       }
