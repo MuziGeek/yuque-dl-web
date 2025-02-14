@@ -11,7 +11,7 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
         configure: (proxy) => {
-          proxy.on('error', (err, req, res) => {
+          proxy.on('error', (err, req) => {
             console.log('代理错误:', err)
             console.log('请求URL:', req.url)
           })
