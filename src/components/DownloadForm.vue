@@ -95,9 +95,13 @@ const download = async () => {
     downloading.value = true
     downloadResult.value = null
 
-    // 发起下载
+    // 添加请求配置
     const response = await axios.post('/api/download', form.value, {
-      responseType: 'blob'
+      responseType: 'blob',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      timeout: 30000 // 30秒超时
     })
     
     // 创建下载链接
@@ -118,11 +122,20 @@ const download = async () => {
 
   } catch (err) {
     const error = err as AxiosError<ErrorResponse>
+    console.error('下载失败:', error)
+    
+    // 改进错误提示
+    let errorMessage = '下载失败: '
+    if (error.response?.status === 405) {
+      errorMessage += '服务器不支持该请求方法，请联系管理员'
+    } else {
+      errorMessage += error.response?.data?.message || error.message
+    }
+    
     downloadResult.value = {
       success: false,
-      message: '下载失败: ' + (error.response?.data?.message || error.message)
+      message: errorMessage
     }
-    console.error('下载失败:', error)
   } finally {
     downloading.value = false
   }
