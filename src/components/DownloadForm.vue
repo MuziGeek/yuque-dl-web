@@ -104,13 +104,17 @@ const download = async () => {
       params: form.value,
       responseType: 'blob',
       headers: {
-        'Accept': 'application/zip'
+        'Accept': 'application/zip, application/octet-stream',
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
       },
       timeout: 30000,
       validateStatus: (status) => {
         console.log('响应状态码:', status)
         return status >= 200 && status < 300
-      }
+      },
+      withCredentials: true,
+      maxRedirects: 5
     })
 
     console.log('请求成功，响应头:', response.headers)
