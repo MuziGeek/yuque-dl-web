@@ -95,14 +95,26 @@ const download = async () => {
     downloading.value = true
     downloadResult.value = null
 
-    // 添加请求配置
+    // 添加调试信息
+    console.log('发送请求到:', '/api/download')
+    console.log('请求数据:', form.value)
+
+    // 发起下载
     const response = await axios.post('/api/download', form.value, {
       responseType: 'blob',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Accept': 'application/zip'
       },
-      timeout: 30000 // 30秒超时
+      timeout: 30000,
+      // 添加更多请求配置
+      validateStatus: (status) => {
+        console.log('响应状态码:', status)
+        return status >= 200 && status < 300
+      }
     })
+
+    console.log('请求成功，响应头:', response.headers)
     
     // 创建下载链接
     const blob = new Blob([response.data], { type: 'application/zip' })
@@ -122,7 +134,12 @@ const download = async () => {
 
   } catch (err) {
     const error = err as AxiosError<ErrorResponse>
-    console.error('下载失败:', error)
+    console.error('详细错误信息:', {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      headers: error.response?.headers,
+      data: error.response?.data
+    })
     
     // 改进错误提示
     let errorMessage = '下载失败: '
