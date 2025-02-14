@@ -66,6 +66,7 @@
 import { ref } from 'vue'
 import axios, { AxiosError } from 'axios'
 import { ElMessage } from 'element-plus'
+import type { ErrorResponse } from '../types/api'
 
 interface DownloadResult {
   success: boolean
@@ -116,7 +117,7 @@ const download = async () => {
     }
 
   } catch (err) {
-    const error = err as AxiosError
+    const error = err as AxiosError<ErrorResponse>
     downloadResult.value = {
       success: false,
       message: '下载失败: ' + (error.response?.data?.message || error.message)
