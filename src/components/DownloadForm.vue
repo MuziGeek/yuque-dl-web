@@ -64,8 +64,9 @@
 
 <script lang="ts" setup>
 import { ref } from 'vue'
-import axios, { AxiosError } from 'axios'
 import { ElMessage } from 'element-plus'
+import  { AxiosError } from 'axios'
+import api from '../config/axios'
 import type { ErrorResponse } from '../types/api'
 
 interface DownloadResult {
@@ -95,26 +96,15 @@ const download = async () => {
     downloading.value = true
     downloadResult.value = null
 
-    // 添加调试信息
-    console.log('发送请求到:', '/api/download')
+    console.log('发送请求到:', '/download')
     console.log('请求数据:', form.value)
 
-    // 将 POST 请求改为 GET 请求，参数通过 URL 传递
-    const response = await axios.get('/api/download', {
+    const response = await api.get('/download', {
       params: form.value,
       responseType: 'blob',
       headers: {
-        'Accept': 'application/zip, application/octet-stream',
-        'Content-Type': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest'
-      },
-      timeout: 30000,
-      validateStatus: (status) => {
-        console.log('响应状态码:', status)
-        return status >= 200 && status < 300
-      },
-      withCredentials: true,
-      maxRedirects: 5
+        'Accept': 'application/zip, application/octet-stream'
+      }
     })
 
     console.log('请求成功，响应头:', response.headers)
