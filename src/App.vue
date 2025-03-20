@@ -1,12 +1,5 @@
 <template>
-  <div class="app-container">
-    <div class="content-wrapper">
-      <h1 class="title">语雀文档下载工具</h1>
-      <div class="card-container">
-        <DownloadForm />
-      </div>
-    </div>
-  </div>
+  <router-view></router-view>
 </template>
 
 <script lang="ts" setup>

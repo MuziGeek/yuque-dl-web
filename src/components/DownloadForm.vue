@@ -46,9 +46,16 @@
         :loading="downloading"
         class="submit-button"
       >
-        {{ downloading ? '处理中...' : '下载文档' }}
+        {{ buttonText }}
       </el-button>
     </el-form-item>
+
+    <el-progress 
+      v-if="downloading && progress > 0" 
+      :percentage="progress" 
+      :format="format"
+      :status="progressStatus"
+    />
 
     <div v-if="downloadResult" class="download-result">
       <el-alert
@@ -63,11 +70,10 @@
 </template>
 
 <script lang="ts" setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import  { AxiosError } from 'axios'
+import { AxiosError } from 'axios'
 import api from '../config/axios'
-import type { ErrorResponse } from '../types/api'
 
 interface DownloadResult {
   success: boolean
@@ -82,8 +88,27 @@ const form = ref({
   toc: false
 })
 
+const progress = ref(0)
 const downloading = ref(false)
 const downloadResult = ref<DownloadResult | null>(null)
+
+// 计算按钮文本
+const buttonText = computed(() => {
+  if (!downloading.value) return '下载文档'
+  return progress.value === 0 ? '拉取文档中...' : `下载中 ${progress.value}%`
+})
+
+// 计算进度条状态
+const progressStatus = computed(() => {
+  if (progress.value >= 100) return 'success'
+  return ''
+})
+
+// 格式化进度条文本
+const format = (percentage: number) => {
+  if (percentage === 100) return '完成'
+  return `${percentage}%`
+}
 
 // 下载
 const download = async () => {
@@ -94,58 +119,132 @@ const download = async () => {
     }
 
     downloading.value = true
+    progress.value = 0
     downloadResult.value = null
 
-    console.log('发送请求到:', '/download')
-    console.log('请求数据:', form.value)
+    try {
+      // 1. 开始下载任务
+      const startResponse = await api.get('/download/start', {
+        params: form.value
+      })
 
-    const response = await api.get('/download', {
-      params: form.value,
-      responseType: 'blob',
-      headers: {
-        'Accept': 'application/zip, application/octet-stream'
+      const { taskId } = startResponse.data
+
+      // 2. 轮询任务状态
+      while (true) {
+        const statusResponse = await api.get(`/download/status/${taskId}`)
+        const task = statusResponse.data
+
+        if (task.status === 'error') {
+          throw new Error(task.error)
+        }
+
+        if (task.status === 'ready') {
+          break
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 1000))
       }
-    })
 
-    console.log('请求成功，响应头:', response.headers)
-    
-    // 创建下载链接
-    const blob = new Blob([response.data], { type: 'application/zip' })
-    const url = window.URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = 'yuque-docs.zip'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    window.URL.revokeObjectURL(url)
+      // 3. 开始分片下载
+      let start = 0
+      const chunks: Blob[] = []
 
-    downloadResult.value = {
-      success: true,
-      message: '文档已下载为 ZIP 压缩包'
+      while (true) {
+        try {
+          const response = await api.get(`/download/chunk/${taskId}`, {
+            params: { start },
+            responseType: 'blob'
+          })
+
+          const chunk = response.data
+          chunks.push(chunk)
+
+          const range = response.headers['content-range']
+          if (!range) {
+            throw new Error('服务器未返回 Content-Range 头')
+          }
+
+          const matches = range.match(/bytes (\d+)-(\d+)\/(\d+)/)
+          if (!matches) {
+            throw new Error('Content-Range 格式错误')
+          }
+
+          const [, , current, total] = matches
+          const currentByte = parseInt(current)
+          const totalBytes = parseInt(total)
+          
+          progress.value = Math.round((currentByte / totalBytes) * 100)
+
+          if (currentByte + 1 >= totalBytes) {
+            break
+          }
+
+          // 更新下一个分片的起始位置
+          start = currentByte + 1
+
+        } catch (error: any) {
+          if (error.response?.status === 416) {
+            // 如果收到 416 错误，说明已经下载完成
+            console.log('下载完成')
+            break
+          }
+          throw error
+        }
+      }
+
+      // 4. 合并所有分片并下载
+      const blob = new Blob(chunks, { type: 'application/zip' })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `yuque-docs-${Date.now()}.zip`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+
+      downloadResult.value = {
+        success: true,
+        message: '文档下载完成'
+      }
+
+    } catch (err) {
+      const error = err as AxiosError
+      console.error('下载错误:', error)
+      
+      let errorMessage = '下载失败: '
+      
+      if (error.response?.status === 430) {
+        errorMessage = '文件过大，请尝试以下方法：\n' +
+          '1. 开启"忽略图片"选项\n' +
+          '2. 分批下载文档\n' +
+          '3. 选择较小的知识库'
+        
+        // 自动开启忽略图片选项
+        form.value.ignoreImg = true
+        
+      } else if (error.response?.status === 503) {
+        errorMessage = '服务暂时不可用，请稍后重试'
+      } else if (error.response?.status === 504) {
+        errorMessage = '请求超时，请检查网络连接'
+      } else {
+        errorMessage += error.response?.data?.message || error.message
+      }
+      
+      downloadResult.value = {
+        success: false,
+        message: errorMessage
+      }
+      
+      // 显示错误提示
+      ElMessage.error({
+        message: errorMessage,
+        duration: 5000,
+        showClose: true
+      })
     }
 
-  } catch (err) {
-    const error = err as AxiosError<ErrorResponse>
-    console.error('详细错误信息:', {
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      headers: error.response?.headers,
-      data: error.response?.data
-    })
-    
-    // 改进错误提示
-    let errorMessage = '下载失败: '
-    if (error.response?.status === 405) {
-      errorMessage += '请确保输入正确的语雀知识库 URL'
-    } else {
-      errorMessage += error.response?.data?.message || error.message
-    }
-    
-    downloadResult.value = {
-      success: false,
-      message: errorMessage
-    }
   } finally {
     downloading.value = false
   }
@@ -207,5 +306,9 @@ const download = async () => {
 
 :deep(.el-switch) {
   --el-switch-on-color: #667eea;
+}
+
+:deep(.el-progress) {
+  margin-top: 1rem;
 }
 </style>
