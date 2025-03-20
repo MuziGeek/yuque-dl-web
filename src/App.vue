@@ -2,9 +2,6 @@
   <router-view></router-view>
 </template>
 
-<script lang="ts" setup>
-import DownloadForm from './components/DownloadForm.vue'
-</script>
 
 <style scoped>
 .app-container {
