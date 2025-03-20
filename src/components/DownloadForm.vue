@@ -229,7 +229,13 @@ const download = async () => {
       } else if (error.response?.status === 504) {
         errorMessage = '请求超时，请检查网络连接'
       } else {
-        errorMessage += error.response?.data?.message || error.message
+        // 检查 error.response 和 error.response.data 是否存在
+        if (error.response && 'data' in error.response) {
+          const responseData = error.response.data as Record<string, any>;
+          errorMessage += responseData.message || error.message;
+        } else {
+          errorMessage += error.message;
+        }
       }
       
       downloadResult.value = {
